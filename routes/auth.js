@@ -1,5 +1,6 @@
 import express from 'express';
 import createHttpError from 'http-errors';
+import { signAccessToken } from '../helpers/jwt_helper.js';
 import validation from '../helpers/validation_schema.js';
 import User from '../models/user.js';
 
@@ -24,7 +25,8 @@ router.post('/register', async (req, res, next) => {
 
         const user = await User.create(result);
         const savedUser = await user.save();
-        res.status(201).send(savedUser);
+        const accessToken = await signAccessToken(savedUser.id);
+        res.status(201).send({ accessToken });
     } catch (error) {
         // we first check if the error is coming from joi
         // if it is coming from joi, then we have to change the error status to 422 which says that the server did not get the request body
@@ -34,8 +36,21 @@ router.post('/register', async (req, res, next) => {
     }
 });
 
-router.post('/login', async (req, res) => {
-    res.send('login router');
+router.post('/login', async (req, res, next) => {
+    try {
+        const result = await validation.authSchema.validateAsync(req.body);
+        const user = await User.findOne({ email: result.email });
+        if (!user) throw createHttpError.NotFound('User not registered');
+
+        const isMatch = await user.isValidPassword(result.password);
+
+        if (!isMatch) throw createHttpError.Unauthorized('Wrong username or password');
+        const accessToken = await signAccessToken(user.id);
+        res.send({ accessToken });
+    } catch (error) {
+        if (error.isJoi) return next(createHttpError.BadRequest('Invalid username or password'));
+        next(error);
+    }
 });
 
 router.post('/refresh-token', async (req, res) => {
