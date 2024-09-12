@@ -3,7 +3,13 @@ import express from 'express';
 import createHttpError from 'http-errors';
 import morgan from 'morgan';
 import './helpers/init_mongodb.js';
+import './helpers/init_redis.js';
+import { verifyAccessToken } from './helpers/jwt_helper.js';
 import AuthRoute from './routes/auth.js';
+
+// await client.set('foo', 'bar');
+// const value = await client.get('foo');
+// console.log('value', value);
 
 dotenv.config();
 
@@ -14,16 +20,14 @@ app.use(express.urlencoded({ extended: true }));
 
 const PORT = process.env.PORT || 5000;
 
-app.get('/', async (req, res, next) => {
+app.get('/', verifyAccessToken, async (req, res, next) => {
+    console.log(req.headers['authorization']);
     res.send('hi');
 });
 
 app.use('/auth', AuthRoute);
 
 app.use(async (req, res, next) => {
-    // const error = new Error('Not found');
-    // error.status = 404;
-    // next(error);
     next(createHttpError.NotFound('This route cannot be found'));
 });
 
